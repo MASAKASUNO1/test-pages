@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <title>Time-Aware Widget</title>
+
+  <!-- Chart.js CDN（最新安定版）-->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* —— 初期リセット —— */
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+
+    /* —— タイポ & レイアウト —— */
+    body{
+      font-family:system-ui,-apple-system,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      transition:background 0.8s ease;
+      color:#fff;
+    }
+    h1{font-size:clamp(1.5rem,4vw,2.5rem);margin-bottom:0.5em;text-shadow:0 2px 6px rgba(0,0,0,.25)}
+    #clock{font-size:clamp(1.25rem,3.5vw,1.8rem);letter-spacing:0.05em;margin-bottom:2em}
+    #wrapper{width:min(80vmin,400px);height:min(80vmin,400px);position:relative}
+    canvas{width:100%!important;height:100%!important}
+
+    /* —— ドーナツ中央の時刻表示 —— */
+    #center-text{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-size:clamp(1.4rem,4vw,2.2rem);font-weight:700;pointer-events:none;
+      text-shadow:0 2px 4px rgba(0,0,0,.25);
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>現在時刻 Progress</h1>
+  <div id="clock">--:--:--</div>
+
+  <div id="wrapper">
+    <canvas id="dayChart"></canvas>
+    <div id="center-text"></div>
+  </div>
+
+  <script>
+    /* ===== 共通ユーティリティ ===== */
+    const secInDay = 86_400;
+    const pad = v => String(v).padStart(2, '0');
+    let chart; // グローバル変数として宣言
+
+    /* ===== 背景テーマを時間帯で変更 ===== */
+    function updateTheme(hour){
+      let grad;
+      if(hour >= 5 && hour < 10){          /* Dawn–Morning */
+        grad = "linear-gradient(135deg,#FFBB66 0%,#FFE0B2 100%)";
+      }else if(hour >= 10 && hour < 17){   /* Daytime */
+        grad = "linear-gradient(135deg,#4FC3F7 0%,#81D4FA 100%)";
+      }else if(hour >= 17 && hour < 20){   /* Sunset */
+        grad = "linear-gradient(135deg,#FF8A65 0%,#FFB74D 100%)";
+      }else{                               /* Night */
+        grad = "linear-gradient(135deg,#283593 0%,#0D47A1 100%)";
+      }
+      document.body.style.background = grad;
+    }
+
+    /* ===== Chart.js 初期化 ===== */
+    function initChart() {
+      try {
+        const ctx = document.getElementById('dayChart').getContext('2d');
+        if (!ctx) {
+          console.error('Canvas context not found');
+          return;
+        }
+        
+        chart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['経過', '残り'],
+            datasets: [{
+              data: [0, secInDay],
+              backgroundColor: ['rgba(255,255,255,0.9)','rgba(255,255,255,0.15)'],
+              borderWidth: 0,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+              tooltip: {enabled:false},
+              legend: {display:false}
+            },
+            animation: {duration:500}
+          }
+        });
+        console.log('Chart initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize chart:', error);
+      }
+    }
+
+    /* ===== 1 秒ごとに更新 ===== */
+    function tick(){
+      const now = new Date();
+      const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+      const secondsToday = h*3600 + m*60 + s;
+
+      /* — 時計表示 — */
+      document.getElementById('clock').textContent =
+        `${pad(h)}:${pad(m)}:${pad(s)}`;
+
+      /* — Chart 更新 — */
+      if (chart) {
+        chart.data.datasets[0].data = [secondsToday, secInDay - secondsToday];
+        chart.update('none');  // 軽量化：アニメーション無
+
+        /* — 中央テキスト (％表示) — */
+        const pct = Math.round(secondsToday / secInDay * 100);
+        document.getElementById('center-text').textContent = `${pct}%`;
+      }
+
+      /* — 背景テーマ — */
+      updateTheme(h);
+    }
+
+    // DOMが完全に読み込まれた後に実行
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM fully loaded');
+      // Chart.jsが読み込まれているか確認
+      if (typeof Chart === 'undefined') {
+        console.error('Chart.js not loaded!');
+        alert('Chart.jsの読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+      }
+      
+      // Chartの初期化
+      initChart();
+      
+      // 初期呼び出し + setInterval
+      tick();
+      setInterval(tick, 1000);
+    });
+  </script>
+
+</body>
+</html>
